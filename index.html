@@ -1602,8 +1602,7 @@ function audienceHTML(e){const a=audienceOf(e);
   const gender=`<div class="gseg"><i style="width:${a.gender.f}%;background:#0E36D6"></i><i style="width:${a.gender.m}%;background:#161410"></i><i style="width:${a.gender.x}%;background:#6FF2A0"></i></div><div class="gleg"><span><b style="background:#0E36D6"></b>Fem ${a.gender.f}%</span><span><b style="background:#161410"></b>Masc ${a.gender.m}%</span><span><b style="background:#6FF2A0"></b>Outro/N.I. ${a.gender.x}%</span></div>`;
   const personas=a.personas.map(p=>`<div class="persona"><div class="persona-h">${esc(p.nome)}</div><div class="persona-meta">${esc(p.faixa)} · principal em ${esc(p.canal)}</div><div class="persona-sobre">${esc(p.sobre)}</div><div class="persona-tags">${p.tags.map(t=>`<span>${esc(t)}</span>`).join('')}</div></div>`).join('');
   return `<div class="grid2c"><div class="panel"><div class="ph2">Faixa etária</div><div class="abars">${abar(a.age,'#0E36D6')}</div></div><div class="panel"><div class="ph2">Gênero</div>${gender}</div></div>
-  <div class="grid2c" style="margin-top:24px"><div class="panel"><div class="ph2">Onde estão</div><div class="abars">${abar(a.regions,'#6FF2A0')}</div></div><div class="panel"><div class="ph2">Também se interessam por</div><div class="afchips">${a.aff.map(t=>`<span>${esc(t)}</span>`).join('')}</div></div></div>
-  <div class="ph2" style="margin-top:26px">Personas sugeridas · ponto de partida para o briefing</div><div class="personas">${personas}</div>`;}
+  <div class="grid2c" style="margin-top:24px"><div class="panel"><div class="ph2">Onde estão</div><div class="abars">${abar(a.regions,'#6FF2A0')}</div></div><div class="panel"><div class="ph2">Também se interessam por</div><div class="afchips">${a.aff.map(t=>`<span>${esc(t)}</span>`).join('')}</div></div></div>`;}
 
 /* ---- contas & projetos por cliente (em memória) ---- */
 let PROJECTS=[];
@@ -1622,12 +1621,26 @@ function projCard(p){const prev=p.subjects.slice(0,4).map(id=>{const e=DB[id];re
 function renderProjetos(){view='projetos';window.scrollTo(0,0);document.getElementById('app').innerHTML=`<div class="casos"><div class="acct"><div class="acct-av">${esc((USER.nome||'V').charAt(0).toUpperCase())}</div><div class="acct-i"><div class="acct-n">${esc(USER.nome||'Sua conta')}</div><div class="acct-s">${esc(USER.email||'conta desta sessão')} · ${PROJECTS.length} projeto(s)</div></div><div class="newcase"><input id="newcaseinput" placeholder="nome do projeto / cliente…"><button onclick="projNovo()">+ novo projeto</button></div></div><div class="projgrid">${PROJECTS.map(p=>projCard(p)).join('')||'<p class="board-empty">Nenhum projeto ainda.</p>'}</div><div style="height:60px"></div></div>`;loadHeroImages();}
 function projInit(p){if(!p.blocks)p.blocks=p.nota?[p.nota]:[];if(!p.attachments)p.attachments=[];if(!p.personas)p.personas=[];}
 function fsize(b){return b>1048576?(b/1048576).toFixed(1)+' MB':b>1024?Math.round(b/1024)+' KB':b+' B';}
-function attCard(pid,a,i){const img=a.type&&a.type.indexOf('image')===0;return `<div class="att"><button class="att-x" onclick="projDelAttach('${pid}',${i})">×</button>${img&&a.url?`<div class="att-thumb" style="background-image:url('${a.url}')"></div>`:`<div class="att-thumb att-file">${esc((a.ext||'arq').toUpperCase())}</div>`}<div class="att-n">${esc(a.name)}</div><div class="att-s">${esc(a.sz)}</div></div>`;}
-function addFiles(pid,files){const p=PROJECTS.find(x=>x.id===pid);if(!p)return;projInit(p);for(const f of files){let url='';try{if(f.type&&f.type.indexOf('image')===0)url=URL.createObjectURL(f);}catch(_){}p.attachments.push({name:f.name,sz:fsize(f.size),type:f.type||'',ext:(f.name.split('.').pop()||'arq').slice(0,4),url});}openProjeto(pid);}
+function attCard(pid,a,i){const img=a.type&&a.type.indexOf('image')===0;const op=a.url?`onclick="window.open('${a.url}','_blank')" style="cursor:pointer"`:'';return `<div class="att"><button class="att-x" onclick="event.stopPropagation();projDelAttach('${pid}',${i})">×</button><div ${op}>${img&&a.url?`<div class="att-thumb" style="background-image:url('${a.url}')"></div>`:`<div class="att-thumb att-file">${esc((a.ext||'arq').toUpperCase())}</div>`}<div class="att-n">${esc(a.name)}</div><div class="att-s">${esc(a.sz)}</div></div></div>`;}
+async function addFiles(pid,files){const p=PROJECTS.find(x=>x.id===pid);if(!p)return;projInit(p);
+  if(!LOGGEDIN||!AUTHTOK){alert('Entre na sua conta para anexar arquivos.');return;}
+  for(const f of files){
+    const ok=(f.type&&(f.type.indexOf('image')===0||f.type==='application/pdf'))||/\.(png|jpe?g|gif|webp|pdf)$/i.test(f.name);
+    if(!ok){console.warn('tipo não suportado:',f.name);continue;}
+    const safe=f.name.replace(/[^a-zA-Z0-9._-]/g,'_');const path=USER.id+'/'+pid+'/'+Date.now()+'-'+safe;
+    try{
+      const up=await fetch(SB_URL+'/storage/v1/object/project-files/'+encodeURI(path),{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+AUTHTOK,'Content-Type':f.type||'application/octet-stream','x-upsert':'true'},body:f});
+      if(!up.ok){console.error('upload',up.status,await up.text());alert('Falha ao subir '+f.name);continue;}
+      const url=SB_URL+'/storage/v1/object/public/project-files/'+encodeURI(path);
+      p.attachments.push({name:f.name,sz:fsize(f.size),type:f.type||'',ext:(f.name.split('.').pop()||'arq').slice(0,4),url,path});
+    }catch(e){console.error(e);}
+  }
+  saveProjectMeta(pid);openProjeto(pid);
+}
 function dzOver(e,on){e.preventDefault();const dz=document.getElementById('dz');if(dz)dz.classList.toggle('over',on);}
 function projDrop(e,pid){e.preventDefault();const dz=document.getElementById('dz');if(dz)dz.classList.remove('over');if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length)addFiles(pid,e.dataTransfer.files);}
 function projFiles(e,pid){if(e.target.files&&e.target.files.length)addFiles(pid,e.target.files);}
-function projDelAttach(pid,i){const p=PROJECTS.find(x=>x.id===pid);if(p){p.attachments.splice(i,1);openProjeto(pid);}}
+function projDelAttach(pid,i){const p=PROJECTS.find(x=>x.id===pid);if(!p)return;const a=p.attachments[i];p.attachments.splice(i,1);saveProjectMeta(pid);openProjeto(pid);if(a&&a.path&&AUTHTOK){fetch(SB_URL+'/storage/v1/object/project-files/'+encodeURI(a.path),{method:'DELETE',headers:{apikey:SB_ANON,Authorization:'Bearer '+AUTHTOK}}).catch(()=>{});}}
 function projAddBlock(pid){const p=PROJECTS.find(x=>x.id===pid);if(p){projInit(p);p.blocks.push('');saveProjectMeta(pid);openProjeto(pid);}}
 function projBlock(pid,i,v){const p=PROJECTS.find(x=>x.id===pid);if(p&&p.blocks){p.blocks[i]=v;saveProjectMeta(pid);}}
 function projDelBlock(pid,i){const p=PROJECTS.find(x=>x.id===pid);if(p){p.blocks.splice(i,1);saveProjectMeta(pid);openProjeto(pid);}}
@@ -1637,16 +1650,14 @@ function personaToggle(pid,i,sid){const p=PROJECTS.find(x=>x.id===pid);if(p&&p.p
 function personaDel(pid,i){const p=PROJECTS.find(x=>x.id===pid);if(p){p.personas.splice(i,1);saveProjectMeta(pid);openProjeto(pid);}}
 function openProjeto(id){const p=PROJECTS.find(x=>x.id===id);if(!p)return;projInit(p);view='projeto';window.scrollTo(0,0);
   const ctx=`<div class="ps-h">Contexto <span>anexos & anotações</span></div>
-    <div class="dropzone" id="dz" ondragover="dzOver(event,true)" ondragleave="dzOver(event,false)" ondrop="projDrop(event,'${p.id}')"><div class="dz-in">arraste arquivos aqui &nbsp;·&nbsp; <label class="dz-lbl">ou selecione<input type="file" multiple style="display:none" onchange="projFiles(event,'${p.id}')"></label><br><span>briefings, PDFs, imagens de referência…</span></div></div>
+    <div class="dropzone" id="dz" ondragover="dzOver(event,true)" ondragleave="dzOver(event,false)" ondrop="projDrop(event,'${p.id}')"><div class="dz-in">arraste arquivos aqui &nbsp;·&nbsp; <label class="dz-lbl">ou selecione<input type="file" multiple accept="image/*,application/pdf" style="display:none" onchange="projFiles(event,'${p.id}')"></label><br><span>briefings, PDFs, imagens de referência…</span></div></div>
     ${p.attachments.length?`<div class="atts">${p.attachments.map((a,i)=>attCard(p.id,a,i)).join('')}</div>`:''}
     <div class="ps-sub">Blocos de texto</div>
     ${p.blocks.map((b,i)=>`<div class="tblock"><textarea oninput="projBlock('${p.id}',${i},this.value)" placeholder="Escreva um bloco de contexto…">${esc(b)}</textarea><button class="tb-x" onclick="projDelBlock('${p.id}',${i})">remover</button></div>`).join('')}
     <button class="addblock" onclick="projAddBlock('${p.id}')">+ bloco de texto</button>`;
   const paut=`<div class="ps-h">Assuntos <span>${p.subjects.length} pauta(s)</span></div>
     ${p.subjects.length?`<div class="board-grid">${p.subjects.map(sid=>{const e=DB[sid];if(!e)return'';const g=e.pulse.growth;return `<div class="bcard"><button class="bx" onclick="projRemove('${p.id}','${sid}')">×</button><div class="bcard-img" onclick="navTo('${sid}')">${wikfig((e.wiki||e.nome),initial(e.nome),HEX[e.tipo],'bthumb')}</div><div class="bcard-t" onclick="navTo('${sid}')">${esc(e.nome)}</div><div class="bcard-m"><span class="${g>=0?'up':'down'}">${g>=0?'▲':'▼'} ${Math.abs(g)}%</span> · ${esc(e.pulse.temp.lab)}</div></div>`;}).join('')}</div>`:`<p class="board-empty">Nenhuma pauta. Abra um assunto no mapa e use "adicionar a um projeto".</p>`}`;
-  const personas=`<section class="ent-sec"><div class="sec-h"><b>Personas</b><span>quem o cliente quer atingir — ligadas aos assuntos</span></div>
-    <div class="personas2">${p.personas.map((pe,i)=>`<div class="pcard2"><button class="pc-del" onclick="personaDel('${p.id}',${i})">remover</button><input class="pc-nome" value="${esc(pe.nome)}" oninput="personaSet('${p.id}',${i},'nome',this.value)" placeholder="Nome da persona"><textarea class="pc-desc" oninput="personaSet('${p.id}',${i},'desc',this.value)" placeholder="Idade, interesses, comportamento, o que consome…">${esc(pe.desc)}</textarea><div class="pc-link-lbl">Assuntos ligados</div><div class="pc-chips">${p.subjects.length?p.subjects.map(sid=>{const e=DB[sid];if(!e)return'';const on=pe.subjects.includes(sid);return `<button class="pc-chip ${on?'on':''}" onclick="personaToggle('${p.id}',${i},'${sid}')"><span class="cd" style="background:${HEX[e.tipo]}"></span>${esc(e.nome)}</button>`;}).join(''):'<span class="pc-none">adicione assuntos ao lado para poder ligá-los às personas</span>'}</div></div>`).join('')}</div>
-    <button class="addblock" onclick="personaNew('${p.id}')">+ nova persona</button></section>`;
+  const personas='';
   document.getElementById('app').innerHTML=`<div class="casos"><span class="back" onclick="renderProjetos()">← todos os projetos</span><div class="proj-head"><div><span class="board-k">projeto · cliente</span><h1 class="proj-title">${esc(p.nome)}</h1></div><button class="lnk" onclick="projDelete('${p.id}')">remover projeto</button></div><div class="proj-split"><div class="ps-col ps-ctx">${ctx}</div><div class="ps-col ps-pautas">${paut}</div></div>${personas}<div style="height:60px"></div></div>`;loadHeroImages();}
 
 /* ---- filtro do mapa da home (reinterpreta os filtros do Expiration Date) ---- */
@@ -1715,7 +1726,7 @@ function renderOnePager(id){if(!LOGGEDIN)return renderGate('projetos');const e=D
       <p class="op-lede">${e.sub}</p>
       <div class="op-metrics"><div><b>${esc(e.pulse.vol)}</b><span>menções · 30d (${gt})</span></div><div><b>${esc(e.pulse.reach)}</b><span>alcance estimado</span></div><div><b>${esc(e.pulse.temp.lab)}</b><span>temp. ${e.pulse.temp.lvl}/100</span></div><div><b>${e.links.length}</b><span>portais</span></div></div>
       <div class="op-grid"><div class="op-box"><h3>Fluxo da conversa · por plataforma</h3>${streamgraph(e.share,e.pulse.spark)}</div><div class="op-box"><h3>Onde se fala · share of voice</h3>${shareBars}</div></div>
-      <div class="op-grid"><div class="op-box"><h3>Quem está falando</h3><div class="op-aud"><div><div class="op-sub2">Faixa etária</div>${abar(a.age,'#0E36D6')}</div><div><div class="op-sub2">Gênero</div>${gender}<div class="op-sub2" style="margin-top:12px">Onde estão</div>${abar(a.regions,'#6FF2A0')}</div></div><div class="op-aff"><div class="op-sub2">Também se interessam por</div>${a.aff.map(t=>`<span>${esc(t)}</span>`).join('')}</div></div><div class="op-box"><h3>Personas sugeridas</h3>${personas}</div></div>
+      <div class="op-grid"><div class="op-box"><h3>Quem está falando</h3><div class="op-aud"><div><div class="op-sub2">Faixa etária</div>${abar(a.age,'#0E36D6')}</div><div><div class="op-sub2">Gênero</div>${gender}<div class="op-sub2" style="margin-top:12px">Onde estão</div>${abar(a.regions,'#6FF2A0')}</div></div><div class="op-aff"><div class="op-sub2">Também se interessam por</div>${a.aff.map(t=>`<span>${esc(t)}</span>`).join('')}</div></div></div>
       <div class="op-foot">Gerado por <b>Rodapé</b> · Observatório de Conversação Digital · ${date} · métricas de escuta simuladas (protótipo)</div>
     </div></div>`;}
 let LOGGEDIN=false;let USER={nome:'',email:'',id:null};let AUTHTOK=null;
@@ -2017,7 +2028,7 @@ async function loadUserData(){
       fetch(SB_URL+'/rest/v1/follows?select=subject_id',{headers:sbHead()}).then(r=>r.json())
     ]);
     const by={};(Array.isArray(ps)?ps:[]).forEach(x=>{(by[x.project_id]=by[x.project_id]||[]).push(x.subject_id);});
-    PROJECTS=(Array.isArray(pr)?pr:[]).map(p=>({id:p.id,nome:p.nome,nota:p.nota||'',blocks:Array.isArray(p.blocks)?p.blocks:[],personas:Array.isArray(p.personas)?p.personas:[],attachments:[],subjects:by[p.id]||[]}));
+    PROJECTS=(Array.isArray(pr)?pr:[]).map(p=>({id:p.id,nome:p.nome,nota:p.nota||'',blocks:Array.isArray(p.blocks)?p.blocks:[],personas:Array.isArray(p.personas)?p.personas:[],attachments:Array.isArray(p.attachments)?p.attachments:[],subjects:by[p.id]||[]}));
     FAV=new Set((Array.isArray(fo)?fo:[]).map(x=>x.subject_id));
     updateAccountUI();
     if(view==='projetos')renderProjetos();else if(view==='feed')renderFeed(FEEDSCOPE);else if(view==='alertas')renderAlertas();
@@ -2027,7 +2038,7 @@ async function sbInsertProject(nome){
   const d=await r.json();return Array.isArray(d)?d[0]:d;}
 function sbDeleteProject(id){fetch(SB_URL+'/rest/v1/projects?id=eq.'+id,{method:'DELETE',headers:sbHead()}).catch(()=>{});}
 let _saveT={};
-function saveProjectMeta(pid){const p=PROJECTS.find(x=>x.id===pid);if(!p||!LOGGEDIN)return;clearTimeout(_saveT[pid]);_saveT[pid]=setTimeout(function(){fetch(SB_URL+'/rest/v1/projects?id=eq.'+pid,{method:'PATCH',headers:sbHead(true),body:JSON.stringify({nota:p.nota||'',blocks:p.blocks||[],personas:p.personas||[]})}).catch(()=>{});},600);}
+function saveProjectMeta(pid){const p=PROJECTS.find(x=>x.id===pid);if(!p||!LOGGEDIN)return;clearTimeout(_saveT[pid]);_saveT[pid]=setTimeout(function(){fetch(SB_URL+'/rest/v1/projects?id=eq.'+pid,{method:'PATCH',headers:sbHead(true),body:JSON.stringify({nota:p.nota||'',blocks:p.blocks||[],personas:p.personas||[],attachments:p.attachments||[]})}).catch(()=>{});},600);}
 function sbAddSubject(pid,sid){fetch(SB_URL+'/rest/v1/project_subjects',{method:'POST',headers:Object.assign(sbHead(true),{Prefer:'resolution=merge-duplicates'}),body:JSON.stringify({project_id:pid,subject_id:sid,user_id:USER.id})}).catch(()=>{});}
 function sbRemoveSubject(pid,sid){fetch(SB_URL+'/rest/v1/project_subjects?project_id=eq.'+pid+'&subject_id=eq.'+sid,{method:'DELETE',headers:sbHead()}).catch(()=>{});}
 function sbFollow(sid,on){if(on)fetch(SB_URL+'/rest/v1/follows',{method:'POST',headers:Object.assign(sbHead(true),{Prefer:'resolution=merge-duplicates'}),body:JSON.stringify({subject_id:sid,user_id:USER.id})}).catch(()=>{});else fetch(SB_URL+'/rest/v1/follows?subject_id=eq.'+sid,{method:'DELETE',headers:sbHead()}).catch(()=>{});}
