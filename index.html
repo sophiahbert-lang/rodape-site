@@ -925,6 +925,13 @@
 .sentbar i{display:block;height:100%;}
 .sentleg{display:flex;gap:14px;font-size:11.5px;color:var(--ink2);flex-wrap:wrap;}
 .sentleg b{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:middle;}
+.thermo{margin:6px 0 26px;}
+.thermo-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+.thermo-i{display:inline-flex;align-items:center;gap:8px;border:1px solid #DDD9CE;border-radius:20px;padding:6px 12px;background:#fff;cursor:pointer;font-family:inherit;}
+.thermo-i:hover{background:#F7F7F4;}
+.thermo-t{font-size:13px;}
+.thermo-n{font-family:"Archivo";font-size:11px;background:var(--green);border:1px solid var(--ink);border-radius:10px;padding:0 7px;}
+.opensearch{color:#1B2AE6 !important;font-weight:500;}
 </style>
 </head>
 <body>
@@ -1536,11 +1543,12 @@ function renderHome(){
       </div>
     </section>
     <div class="homestrip"><div class="run">${runHTML}</div></div>
+    <div id="thermo" class="thermo"></div>
     <div id="explorar" class="eyebrow">${sym('compass')} Explorar <span class="en">o que está em circulação agora</span></div>
     <div class="cattabs" id="cattabs">${["Em alta",...order.filter(c=>cats[c]),"Todos"].map(c=>`<button class="cattab" data-cat="${c}" onclick="filterCat('${c}')">${c}</button>`).join('')}</div>
     <div class="btns" id="entgrid"></div>
     <div style="height:50px"></div>`;
-  wireHomeSearch();
+  wireHomeSearch();loadThermo();
   filterCat('Em alta');
   hwSeed();
   drawHomeWeb();
@@ -1995,10 +2003,35 @@ addEventListener('resize',()=>{if(view==='entity'&&current)drawGraph();if(view==
 
 /* ---------- search ---------- */
 let INDEX=Object.keys(DB).map(id=>({id,nome:DB[id].nome,tipo:DB[id].tipo}));
-function doSuggest(inputEl,boxEl){const v=inputEl.value.trim().toLowerCase();if(!v){boxEl.classList.remove('open');boxEl.innerHTML='';return;}
-  const hits=INDEX.filter(x=>x.nome.toLowerCase().includes(v)).slice(0,7);
-  boxEl.innerHTML=hits.length?hits.map(h=>`<button onclick="navTo('${h.id}')"><span class="dot" style="background:${HEX[h.tipo]}"></span>${esc(h.nome)}<span class="kd">${h.tipo}</span></button>`).join(''):'<button style="cursor:default;color:var(--ink2)">Nada encontrado nesse recorte.</button>';
-  boxEl.classList.add('open');}
+function doSuggest(inputEl,boxEl){const raw=inputEl.value.trim();const v=raw.toLowerCase();if(!v){boxEl.classList.remove('open');boxEl.innerHTML='';return;}
+  const hits=INDEX.filter(x=>x.nome.toLowerCase().includes(v)).slice(0,6);
+  const safe=raw.replace(/['"\\]/g,' ');
+  let html=hits.map(h=>`<button onclick="navTo('${h.id}')"><span class="dot" style="background:${HEX[h.tipo]}"></span>${esc(h.nome)}<span class="kd">${h.tipo}</span></button>`).join('');
+  html+=`<button class="opensearch" onclick="openSearch('${safe}')">\ud83d\udd0e pesquisar \u201c${esc(raw)}\u201d na Wikip\u00e9dia</button>`;
+  boxEl.innerHTML=html;boxEl.classList.add('open');}
+function slugTerm(s){return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,60);}
+async function wikiResolve(term){const q=encodeURIComponent(term);
+  for(const lang of ['pt','en']){try{const r=await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${q}&srlimit=1&srnamespace=0&format=json&origin=*`);if(!r.ok)continue;const j=await r.json();const h=j.query&&j.query.search&&j.query.search[0];if(h&&h.title)return {title:h.title,lang};}catch(_){}}
+  return null;}
+function openEntity(title,lang){return {id:slugTerm(title),nome:title,tipo:'tema',kind:'Buscado na plataforma',cat:'Cultura',wiki:title,wiki_lang:lang||'pt',sub:'',discovered:true,createdAt:new Date().toISOString(),
+  pulse:{n:0,vol:'\u2014',reach:'\u2014',growth:0,spark:[1],temp:tempFromGrowth(0),peak:''},share:[],discourse:[],temas:[],conectadas:[],links:[],narrative:[]};}
+function logSearch(term,id,nome){if(!SB_URL||!SB_ANON)return;fetch(SB_URL+'/rest/v1/searches',{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+(AUTHTOK||SB_ANON),'Content-Type':'application/json',Prefer:'return=minimal'},body:JSON.stringify({term:term,subject_id:id||null,nome:nome||null})}).catch(()=>{});}
+function sbCreateSubject(e){if(!SB_URL||!SB_ANON)return;fetch(SB_URL+'/rest/v1/subjects',{method:'POST',headers:{apikey:SB_ANON,Authorization:'Bearer '+(AUTHTOK||SB_ANON),'Content-Type':'application/json',Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({subject_id:e.id,nome:e.nome,tipo:'tema',kind:'Buscado na plataforma',wiki_title:e.wiki,wiki_lang:e.wiki_lang||'pt',youtube_query:e.nome,reddit_query:e.nome,news_query:e.nome,active:true})}).catch(()=>{});}
+async function openSearch(term){term=(term||'').trim();if(!term)return;
+  const box=document.getElementById('hsuggest')||document.getElementById('suggest');
+  if(box){box.innerHTML='<button style="cursor:default;color:var(--ink2)">buscando na Wikip\u00e9dia\u2026</button>';box.classList.add('open');}
+  const found=await wikiResolve(term);
+  if(!found){if(box)box.innerHTML='<button style="cursor:default;color:var(--ink2)">Nada encontrado na Wikip\u00e9dia para \u201c'+esc(term)+'\u201d.</button>';return;}
+  const id=slugTerm(found.title);logSearch(term,id,found.title);
+  if(box){box.classList.remove('open');box.innerHTML='';}
+  if(DB[id]){navTo(id);return;}
+  const e=openEntity(found.title,found.lang);DB[id]=e;INDEX.push({id,nome:found.title,tipo:'tema'});sbCreateSubject(e);navTo(id);}
+async function loadThermo(){const el=document.getElementById('thermo');if(!el||!SB_URL||!SB_ANON)return;
+  try{const r=await fetch(SB_URL+'/rest/v1/v_top_searches?select=*',{headers:{apikey:SB_ANON,Authorization:'Bearer '+SB_ANON}});if(!r.ok)return;const rows=await r.json();
+    if(!Array.isArray(rows)||!rows.length){el.innerHTML='';return;}
+    el.innerHTML='<div class="eyebrow">O que est\u00e3o procurando <span class="en">buscas dentro do RODAP\u00c9 \u00b7 7 dias</span></div><div class="thermo-list">'+
+      rows.map(x=>{const t=(x.termo||'').replace(/['"\\]/g,' ');const act=x.subject_id?`navTo('${x.subject_id}')`:`openSearch('${t}')`;return `<button class="thermo-i" onclick="${act}"><span class="thermo-t">${esc(x.termo||'')}</span><span class="thermo-n">${x.n}</span></button>`;}).join('')+'</div>';
+  }catch(_){}}
 qInput.addEventListener('input',()=>doSuggest(qInput,suggestEl));
 qInput.addEventListener('keydown',e=>{if(e.key==='Enter'){const f=suggestEl.querySelector('button[onclick]');if(f)f.click();}});
 function closeSuggest(){suggestEl.classList.remove('open');suggestEl.innerHTML='';}
