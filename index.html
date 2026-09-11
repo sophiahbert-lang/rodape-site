@@ -916,6 +916,15 @@
 
   /* redução global — encolhe tudo proporcionalmente */
   body{zoom:0.85;}
+.phasetag{font-family:"Archivo";font-size:10px;text-transform:uppercase;letter-spacing:.5px;border-radius:20px;padding:2px 9px;margin-left:10px;border:1.5px solid var(--ink);vertical-align:middle;}
+.phasetag.up{background:#E1F5EE;color:#0F6E56;border-color:#0F6E56;}
+.phasetag.down{background:#FAECE7;color:#993C1D;border-color:#993C1D;}
+.phasetag.mid{background:#F1EFE8;color:#5F5E5A;border-color:#5F5E5A;}
+.phasehint{font-family:"Archivo";font-size:11px;color:var(--ink2);margin-left:8px;vertical-align:middle;}
+.sentbar{display:flex;height:22px;border-radius:6px;overflow:hidden;margin:2px 0 8px;}
+.sentbar i{display:block;height:100%;}
+.sentleg{display:flex;gap:14px;font-size:11.5px;color:var(--ink2);flex-wrap:wrap;}
+.sentleg b{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:middle;}
 </style>
 </head>
 <body>
@@ -1856,6 +1865,21 @@ function drawHomeWeb(){
   tick();if(reduce)for(let i=0;i<120;i++)tick();
 }
 
+function phaseOf(e){const g=(e.pulse&&e.pulse.growth)||0;
+  if(g>=30)return {lab:'acelerando',hint:'janela aberta \u2014 bom momento pra pautar',cls:'up'};
+  if(g<=-15)return {lab:'esfriando',hint:'em queda \u2014 cauda da conversa',cls:'down'};
+  return {lab:'no pico / est\u00e1vel',hint:'conversa madura, sem grande acelera\u00e7\u00e3o',cls:'mid'};}
+function toneSpark(hist){if(!Array.isArray(hist)||hist.length<2)return '';const w=240,h=44,n=hist.length;const X=i=>4+(i/(n-1))*(w-8);const Y=s=>h/2-(Math.max(-100,Math.min(100,s))/100)*(h/2-4);
+  const pts=hist.map((p,i)=>`${X(i).toFixed(1)},${Y(p.s).toFixed(1)}`).join(' ');const last=hist[hist.length-1].s;const col=last>5?'#1D9E75':(last<-5?'#D85A30':'#888780');
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:${h}px"><line x1="4" y1="${(h/2).toFixed(1)}" x2="${w-4}" y2="${(h/2).toFixed(1)}" stroke="#DDD9CE" stroke-width="1"/><polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2"/></svg>`;}
+function sentPanel(e){const s=e.sentiment;
+  if(!s||typeof s.score==='undefined'){return `<div class="panel"><div class="ph2">Sentimento da cobertura</div><div style="color:var(--ink2);font-size:12.5px;font-style:italic;padding:6px 0">Ainda medindo o tom da cobertura \u2014 aparece depois de algumas coletas.</div></div>`;}
+  const pos=+s.pos||0,neu=+s.neu||0,neg=+s.neg||0,tot=pos+neu+neg||1;
+  const pp=Math.round(pos/tot*100),np=Math.round(neg/tot*100),up=Math.max(0,100-pp-np);const score=+s.score||0;
+  return `<div class="panel"><div class="ph2">Sentimento da cobertura</div>
+    <div class="sentbar"><i style="width:${pp}%;background:#1D9E75"></i><i style="width:${up}%;background:#B4B2A9"></i><i style="width:${np}%;background:#D85A30"></i></div>
+    <div class="sentleg"><span><b style="background:#1D9E75"></b>positivo ${pp}%</span><span><b style="background:#B4B2A9"></b>neutro ${up}%</span><span><b style="background:#D85A30"></b>negativo ${np}%</span></div>
+    <div class="ph2" style="margin-top:12px">evolu\u00e7\u00e3o do tom <span style="color:var(--ink2)">\u00b7 saldo ${score>=0?'+':''}${score}</span></div>${toneSpark(s.history)||'<div style="color:var(--ink2);font-size:12px">sem hist\u00f3rico ainda</div>'}</div>`;}
 function renderEntity(){
   const e=DB[current],hex=HEX[e.tipo];
   const g=e.pulse.growth,gc=g>=0?'up':'down',gt=(g>=0?'+':'')+g+'%';
@@ -1885,7 +1909,7 @@ function renderEntity(){
     ${trail}
     <div class="ent-layout2">
       <main class="ent-main2">
-        <div class="kicker"><span class="ptype-dot" style="background:${hex}"></span><span class="kd">${esc(e.kind)}</span>${e.discovered?'<span class="disctag">novo \u00b7 descoberto</span>':''}</div>
+        <div class="kicker"><span class="ptype-dot" style="background:${hex}"></span><span class="kd">${esc(e.kind)}</span>${e.discovered?'<span class="disctag">novo \u00b7 descoberto</span>':''}${(()=>{const p=phaseOf(e);return `<span class="phasetag ${p.cls}">\u25cf ${p.lab}</span><span class="phasehint">${p.hint}</span>`;})()}</div>
         <h1>${esc(e.nome)}</h1>
         <p class="lede">${e.sub}</p>
         <p class="about" data-wiki="${esc((e.wiki||e.nome).replace(/ /g,'_'))}">${e.sub}</p>
@@ -1893,7 +1917,7 @@ function renderEntity(){
         ${(()=>{const ev=Array.isArray(e.evidence)?e.evidence:[];return `<section class="ent-sec whybox"><div class="sec-h"><b>Por que est\u00e1 em alta</b><span>o que puxou o pico \u00b7 lido das fontes</span></div>`+(e.why?`<p class="whytext">${esc(e.why)}</p>`:`<p class="whytext faint">Ainda reunindo sinais para explicar este assunto \u2014 a explica\u00e7\u00e3o aparece depois de algumas coletas.</p>`)+(ev.length?`<div class="whyev">${ev.slice(0,6).map(x=>`<a class="whyi" href="${x.url||'#'}" target="_blank" rel="noopener"><span class="whys">${esc(x.source||'')}</span><span class="whyt">${esc(x.title||'')}</span><span class="whygo">\u2197</span></a>`).join('')}</div>`:'')+`</section>`;})()}
         <section class="ent-sec"><div class="sec-h"><b>A rede</b><span>o mapa de conexões — arraste e clique</span></div><div class="graphmod"><div class="ghint">arraste · clique p/ viajar</div><svg id="graph"></svg></div><div class="grid2c" style="margin-top:18px"><div><div class="ph2">Temas relacionados</div>${pills(e.temas)}</div><div><div class="ph2">Entidades conectadas</div>${conn}</div></div></section>
         <section class="ent-sec"><div class="sec-h"><b>Situação agora</b><span>o pulso do assunto</span></div><div class="grid2c"><div class="panel"><div class="ph2">Fluxo da conversa · por plataforma</div><div id="mFlow">${streamgraph(e.share,e.pulse.spark)}</div><div class="strleg">${e.share.map(s=>`<span><b style="background:${s.c}"></b>${esc(s.p)}</span>`).join('')}</div><div class="cap">${esc(e.pulse.peak)}</div></div><div class="panel"><div class="ph2">Temperatura & crescimento</div><div class="gaugewrap">${gauge(e.pulse.temp.lvl,e.pulse.temp.lab)}<div class="growthbig" style="color:${g>=0?'#161410':'var(--red)'}">${gt}</div><div class="cap">vs. mês anterior</div></div></div></div></section>
-        <section class="ent-sec"><div class="sec-h"><b>Como está sendo discutida</b><span>plataformas e tom</span></div><div class="grid2c"><div class="panel"><div class="ph2">Share of voice</div><div class="donutwrap">${donut(e.share,e.nome)}<div class="dleg">${e.share.map(s=>`<a class="dl" href="${platUrl(s.p,e.nome)}" target="_blank" rel="noopener" data-tip="abrir ${esc(s.p)} ↗"><b style="background:${s.c}"></b>${esc(s.p)}<em>${s.pct}%</em></a>`).join('')}</div></div></div><div class="panel"><div class="ph2">Tipos de discurso</div>${vbars(e.discourse,e.nome)}</div></div></section>
+        <section class="ent-sec"><div class="sec-h"><b>Como está sendo discutida</b><span>plataformas e tom</span></div><div class="grid2c"><div class="panel"><div class="ph2">Share of voice</div><div class="donutwrap">${donut(e.share,e.nome)}<div class="dleg">${e.share.map(s=>`<a class="dl" href="${platUrl(s.p,e.nome)}" target="_blank" rel="noopener" data-tip="abrir ${esc(s.p)} ↗"><b style="background:${s.c}"></b>${esc(s.p)}<em>${s.pct}%</em></a>`).join('')}</div></div></div>${sentPanel(e)}</div></section>
         <section class="ent-sec"><div class="sec-h"><b>Quem está falando</b><span>audiência e personas — base para o briefing</span></div>${audienceHTML(e)}</section>
         <section class="ent-sec" id="portais"><div class="sec-h"><b>Onde a conversa vive</b><span>${e.links.length} portais · abra a fonte que interessa</span></div>${feat}${plHTML}</section>
         ${narr?`<section class="ent-sec"><div class="sec-h"><b>Como a conversa evoluiu</b><span>a trajetória do assunto</span></div><div class="tline">${e.narrative.map((p,i)=>`<div class="tphase p${i}"><div class="tw">${esc(p.w)}</div><div class="tf">${esc(p.f)}</div><div class="tt">${esc(p.t)}</div></div>`).join('')}</div></section>`:''}
@@ -1904,7 +1928,7 @@ function renderEntity(){
         <div class="side-metrics">
           <div class="sm"><span class="sm-v" id="mVol">${esc(e.pulse.vol)}</span><span class="sm-l">menções · 30d</span><span class="sm-d ${gc}" id="mGrowth">${gt}</span></div>
           <div class="sm"><span class="sm-v">${esc(e.pulse.reach)}</span><span class="sm-l">alcance estimado</span></div>
-          <div class="sm"><span class="sm-v" style="font-size:16px">${esc(e.pulse.temp.lab)}</span><span class="sm-l">temp. ${e.pulse.temp.lvl}/100</span></div>
+          <div class="sm"><span class="sm-v" style="font-size:16px">${esc(e.pulse.temp.lab)}</span><span class="sm-l">temp. ${e.pulse.temp.lvl}/100</span></div>${e.sentiment&&typeof e.sentiment.score!=='undefined'?`<div class="sm"><span class="sm-v ${e.sentiment.score>=0?'up':'down'}">${e.sentiment.score>=0?'+':''}${e.sentiment.score}</span><span class="sm-l">saldo de tom</span></div>`:''}
           <div class="sm"><span class="sm-v">${e.links.length}</span><span class="sm-l">portais mapeados</span></div>
         </div>
         <div class="ent-actions"><button class="act-btn follow ${FAV.has(current)?'on':''}" id="followbtn" onclick="toggleFav('${current}')">${FAV.has(current)?'★ seguindo':'☆ seguir'}</button><button class="act-btn" onclick="toggleProjMenu('${current}')">+ adicionar a um projeto</button><button class="act-btn" onclick="renderOnePager('${current}')">⤓ exportar one-pager</button><div class="casemenu" id="casemenu"></div></div>
@@ -2071,7 +2095,7 @@ async function loadPulseFromDB(){
       let e=DB[row.subject_id];
       if(!e){ e=synthEntity(row); DB[row.subject_id]=e; }
       e.createdAt=row.created_at||e.createdAt; e.lastActive=row.last_active||e.lastActive;
-      if(row.why)e.why=row.why; if(Array.isArray(row.evidence))e.evidence=row.evidence;
+      if(row.why)e.why=row.why; if(Array.isArray(row.evidence))e.evidence=row.evidence; if(row.sentiment)e.sentiment=row.sentiment;
       const vol=+row.vol30||0;
       if(vol>0){ e.pulse.n=vol; e.pulse.vol=fmt(vol); e.pulse.growth=Math.round(+row.growth||0); e.live=true; LIVE[row.subject_id]=true; }
       const spark=Array.isArray(row.spark)?row.spark.map(Number):[];
