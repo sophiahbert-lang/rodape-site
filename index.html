@@ -1642,7 +1642,7 @@ function openProjeto(id){const p=PROJECTS.find(x=>x.id===id);if(!p)return;projIn
 
 /* ---- filtro do mapa da home (reinterpreta os filtros do Expiration Date) ---- */
 function hwFilter(cat){const svg=document.getElementById('homeweb');const R=svg?svg.getBoundingClientRect():{width:900,height:520};const W=R.width||900,H=R.height||520;
-  let ids;if(cat==='Tudo')ids=Object.keys(DB).sort((a,b)=>DB[b].pulse.growth-DB[a].pulse.growth).slice(0,18);
+  let ids;if(cat==='Tudo'){HW.armed=null;const _d=Object.keys(DB).filter(id=>DB[id].discovered);const _r=Object.keys(DB).filter(id=>!DB[id].discovered).sort((a,b)=>vitalityOf(DB[b])-vitalityOf(DB[a]));ids=[..._d,..._r].slice(0,Math.max(18,_d.length));}
   else ids=Object.keys(DB).filter(id=>DB[id].cat===cat).sort((a,b)=>DB[b].pulse.growth-DB[a].pulse.growth).slice(0,14);
   HW.nodes={};ids.forEach((id,i)=>{const a=(i/ids.length)*Math.PI*2,rad=Math.min(W,H)*0.36;HW.nodes[id]={id,x:W/2+Math.cos(a)*rad+(Math.random()*40-20),y:H/2+Math.sin(a)*rad+(Math.random()*40-20),vx:0,vy:0};});
   drawHomeWeb();document.querySelectorAll('.hwfilter button').forEach(b=>b.classList.toggle('on',b.dataset.cat===cat));}
@@ -1781,10 +1781,21 @@ function gauge(lvl,label){const R=54,cx=64,cy=64;const a=Math.PI*(1-lvl/100);con
 function vbars(items,ename){const mx=Math.max(...items.map(i=>i.v));
   return `<div class="vbars">`+items.map(it=>{const u=`https://www.google.com/search?q=${enc(ename+' '+it.l)}`;return `<a class="vb" href="${u}" target="_blank" rel="noopener" data-tip="${esc(it.l)}: ${it.v}% — ver exemplos ↗"><div class="vbwrap"><div class="vbar" style="height:${(it.v/mx*100).toFixed(0)}%;background:${DC[it.k]||'#999'}"></div></div><div class="vbl">${it.v}%</div><div class="vbn">${esc(it.l)}</div></a>`;}).join('')+`</div>`;}
 
-const HW={nodes:{},raf:0};
+const HW={nodes:{},raf:0,armed:null};
+function daysSince(iso){if(!iso)return 999;const t=Date.parse(iso);if(isNaN(t))return 999;return Math.max(0,(Date.now()-t)/864e5);}
+function vitalityOf(e){if(!e||!e.pulse)return 0;let v=Math.max(0,Math.min(1,((e.pulse.growth||0)+40)/120));
+  if(e.lastActive){v*=Math.max(0.06,1-daysSince(e.lastActive)/30);}
+  if(e.discovered){const dc=e.createdAt?daysSince(e.createdAt):0;v=Math.max(v,1-Math.min(1,dc/30)*0.7);}
+  return v;}
+function hwRamify(id){const e=DB[id];if(!e)return 0;const src=HW.nodes[id];if(!src)return 0;const neigh=[];
+  (e.conectadas||[]).forEach(c=>{if(DB[c.id]&&!HW.nodes[c.id])neigh.push(c.id);});
+  (e.temas||[]).forEach(t=>{if(DB[t.id]&&!HW.nodes[t.id])neigh.push(t.id);});
+  if(!neigh.length)return 0;
+  neigh.forEach((nid,i)=>{const a=(i/neigh.length)*Math.PI*2,rad=90+Math.random()*50;HW.nodes[nid]={id:nid,x:src.x+Math.cos(a)*rad,y:src.y+Math.sin(a)*rad,vx:0,vy:0,revived:true};});
+  drawHomeWeb();return neigh.length;}
 const hwImg={};
-function hwSeed(){const svg=document.getElementById('homeweb');const R=svg?svg.getBoundingClientRect():{width:900,height:520};const W=R.width||900,H=R.height||520;HW.nodes={};
-  const seed=Object.keys(DB).sort((a,b)=>DB[b].pulse.growth-DB[a].pulse.growth).slice(0,matchMedia('(max-width:760px)').matches?10:18);
+function hwSeed(){const svg=document.getElementById('homeweb');const R=svg?svg.getBoundingClientRect():{width:900,height:520};const W=R.width||900,H=R.height||520;HW.nodes={};HW.armed=null;
+  const _disc=Object.keys(DB).filter(id=>DB[id].discovered);const _rest=Object.keys(DB).filter(id=>!DB[id].discovered).sort((a,b)=>vitalityOf(DB[b])-vitalityOf(DB[a]));const _cap=matchMedia('(max-width:760px)').matches?10:18;const seed=[..._disc,..._rest].slice(0,Math.max(_cap,_disc.length));
   seed.forEach((id,i)=>{const a=(i/seed.length)*Math.PI*2,rad=Math.min(W,H)*0.36;HW.nodes[id]={id,x:W/2+Math.cos(a)*rad+(Math.random()*40-20),y:H/2+Math.sin(a)*rad+(Math.random()*40-20),vx:0,vy:0};});}
 function setNodeImg(g,src){const im=g&&g.querySelector('image');if(im){im.setAttributeNS('http://www.w3.org/1999/xlink','href',src);im.setAttribute('href',src);im.setAttribute('opacity','1');}}
 function hwLoadImg(id){if(id in hwImg)return;hwImg[id]=null;const t=(DB[id].wiki||DB[id].nome).replace(/ /g,'_');resolveWiki(t,DB[id].nome).then(s=>{hwImg[id]=s;setNodeImg(document.querySelector(`.hwnode[data-id="${id}"]`),s);}).catch(()=>{});}
@@ -1798,10 +1809,15 @@ function drawHomeWeb(){
   const rOf=id=>{const s=Math.sqrt(DB[id].pulse.n);return 20+(sMax>sMin?(s-sMin)/(sMax-sMin):0)*20;};
   svg.innerHTML=`<g id="hwe"></g><g id="hwn"></g>`;const gE=svg.querySelector('#hwe'),gN=svg.querySelector('#hwn');
   links.forEach(l=>{const ln=document.createElementNS('http://www.w3.org/2000/svg','line');ln.setAttribute('stroke','#161410');ln.setAttribute('stroke-opacity','0.14');ln.setAttribute('stroke-width','1');ln.dataset.a=l[0];ln.dataset.b=l[1];gE.appendChild(ln);});
-  ids.forEach(id=>{const d=DB[id],col=HEX[d.tipo],stroke=(d.tipo==='tema'?'#6FF2A0':col),lc=(d.tipo==='tema'?'#161410':col),r=rOf(id),n=HW.nodes[id];n.r=r;const src=hwImg[id]||'';
-    const g=document.createElementNS('http://www.w3.org/2000/svg','g');g.setAttribute('class','hwnode');g.dataset.id=id;
-    g.innerHTML=`<g transform="rotate(${rot(id)})"><rect x="${(-r*1.05).toFixed(1)}" y="${(-r*1.05).toFixed(1)}" width="${(r*2.1).toFixed(1)}" height="${(r*2.1).toFixed(1)}" fill="#FFFFFF"/><text text-anchor="middle" dominant-baseline="central" y="0" style="font-family:'Grenze Gotisch';font-weight:700;font-size:${(r*1.3).toFixed(1)}px;fill:${lc}">${initial(d.nome)}</text><svg x="${(-r*1.05).toFixed(1)}" y="${(-r*1.05).toFixed(1)}" width="${(r*2.1).toFixed(1)}" height="${(r*2.1).toFixed(1)}" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice"><image width="100" height="100" preserveAspectRatio="xMidYMid slice" href="${src}" opacity="${src?1:0}"/></svg><rect x="${(-r*1.05).toFixed(1)}" y="${(-r*1.05).toFixed(1)}" width="${(r*2.1).toFixed(1)}" height="${(r*2.1).toFixed(1)}" fill="none" stroke="${stroke}" stroke-width="2.5"/></g><text class="hwlabel" text-anchor="middle" y="${(r*1.05+16).toFixed(1)}" style="font-size:12.5px">${esc(d.nome)}</text>`;
-    g.addEventListener('click',()=>navTo(id));
+  ids.forEach(id=>{const d=DB[id],col=HEX[d.tipo],stroke=(d.tipo==='tema'?'#6FF2A0':col),lc=(d.tipo==='tema'?'#161410':col),r=rOf(id),n=HW.nodes[id];n.r=r;const src=hwImg[id]||'';const isNew=!!d.discovered;const _op=n.revived?0.5:Math.max(0.5,Math.min(1,0.45+0.6*vitalityOf(d)));
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');g.setAttribute('class','hwnode');g.dataset.id=id;g.setAttribute('opacity',_op.toFixed(2));
+    g.innerHTML=`<g transform="rotate(${rot(id)})"><rect x="${(-r*1.05).toFixed(1)}" y="${(-r*1.05).toFixed(1)}" width="${(r*2.1).toFixed(1)}" height="${(r*2.1).toFixed(1)}" fill="#FFFFFF"/><text text-anchor="middle" dominant-baseline="central" y="0" style="font-family:'Grenze Gotisch';font-weight:700;font-size:${(r*1.3).toFixed(1)}px;fill:${lc}">${initial(d.nome)}</text><svg x="${(-r*1.05).toFixed(1)}" y="${(-r*1.05).toFixed(1)}" width="${(r*2.1).toFixed(1)}" height="${(r*2.1).toFixed(1)}" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice"><image width="100" height="100" preserveAspectRatio="xMidYMid slice" href="${src}" opacity="${src?1:0}"/></svg><rect x="${(-r*1.05).toFixed(1)}" y="${(-r*1.05).toFixed(1)}" width="${(r*2.1).toFixed(1)}" height="${(r*2.1).toFixed(1)}" fill="none" stroke="${isNew?'#6FF2A0':stroke}" stroke-width="${isNew?5:2.5}"/></g><text class="hwlabel" text-anchor="middle" y="${(r*1.05+16).toFixed(1)}" style="font-size:12.5px">${esc(d.nome)}</text>${isNew?`<text text-anchor="middle" y="${(-r*1.05-11).toFixed(1)}" style="font-family:Archivo;font-size:10px;letter-spacing:.6px;font-weight:700;fill:#161410">◆ NOVO</text>`:''}`;
+    g.addEventListener('click',()=>{
+      if(HW.armed===id){HW.armed=null;navTo(id);return;}
+      const added=hwRamify(id);
+      if(!added){navTo(id);return;}
+      HW.armed=id;const bar=document.getElementById('hwbar');if(bar)bar.innerHTML=`ramificou <b>${esc(d.nome)}</b> \u2014 clique de novo para abrir a p\u00e1gina`;
+    });
     gN.appendChild(g);n.el=g;if(!(id in hwImg))hwLoadImg(id);else if(hwImg[id])setNodeImg(g,hwImg[id]);});
   const bar=document.getElementById('hwbar');if(bar)bar.innerHTML='clique num assunto para abrir sua página';
   function tick(){const t=Date.now(),list=Object.values(HW.nodes);
@@ -2030,6 +2046,7 @@ async function loadPulseFromDB(){
     rows.forEach(row=>{
       let e=DB[row.subject_id];
       if(!e){ e=synthEntity(row); DB[row.subject_id]=e; }
+      e.createdAt=row.created_at||e.createdAt; e.lastActive=row.last_active||e.lastActive;
       const vol=+row.vol30||0;
       if(vol>0){ e.pulse.n=vol; e.pulse.vol=fmt(vol); e.pulse.growth=Math.round(+row.growth||0); e.live=true; LIVE[row.subject_id]=true; }
       const spark=Array.isArray(row.spark)?row.spark.map(Number):[];
