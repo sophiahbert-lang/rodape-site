@@ -913,6 +913,9 @@
 .whys{font-family:"Archivo";font-size:9.5px;text-transform:uppercase;letter-spacing:.5px;background:var(--ink);color:#fff;border-radius:3px;padding:2px 7px;flex:none;}
 .whyt{font-size:14px;line-height:1.35;flex:1;}
 .whygo{color:var(--ink2);flex:none;}
+
+  /* redução global — encolhe tudo proporcionalmente */
+  body{zoom:0.85;}
 </style>
 </head>
 <body>
@@ -1984,7 +1987,7 @@ document.addEventListener('click',e=>{if(!e.target.closest('.ent-actions')){cons
 const RUN=[];
 
 document.body.insertAdjacentHTML('beforeend','<div class=\"vmark\">RODAPÉ · OBSERVATÓRIO</div>');
-document.querySelector('.topbar').insertAdjacentHTML('beforeend','<div class=\'acctlink\' id=\'acctlink\'></div>');renderHome();updateAccountUI();
+document.querySelector('.topbar').insertAdjacentHTML('beforeend','<div class=\'acctlink\' id=\'acctlink\'></div>');Object.keys(DB).forEach(id=>delete DB[id]);INDEX.length=0;renderHome();updateAccountUI();
 
 
 /* ===== RODAPÉ · leitura de dados reais do Supabase (Nível 1) =====
@@ -2055,7 +2058,7 @@ function synthEntity(row){const vol=+row.vol30||0,g=Math.round(+row.growth||0);
   const spark=Array.isArray(row.spark)&&row.spark.length?row.spark.map(Number):[Math.max(1,Math.round(vol/15))];
   const shares=Array.isArray(row.shares)?row.shares:[];const tot=shares.reduce((a,b)=>a+(+b.n||0),0);
   const share=tot>0?shares.map(x=>{const m=PLAT[x.source]||{p:x.source,c:"#7A7566",ico:"?"};return {p:m.p,c:m.c,ico:m.ico,pct:Math.round((+x.n||0)/tot*100),n:fmt(+x.n||0)};}):[];
-  return {id:row.subject_id,nome:row.nome||row.subject_id,tipo:row.tipo||'tema',kind:row.kind||'Assunto emergente',cat:mapCat(row.tipo,row.kind),wiki:row.nome||row.subject_id,sub:'',discovered:true,
+  return {id:row.subject_id,nome:row.nome||row.subject_id,tipo:row.tipo||'tema',kind:row.kind||'Assunto emergente',cat:mapCat(row.tipo,row.kind),wiki:row.nome||row.subject_id,sub:'',discovered:(row.created_at?daysSince(row.created_at)<=7:true),
     pulse:{n:vol,vol:fmt(vol),reach:fmt(Math.round(vol*7.5)),growth:g,spark:spark,temp:tempFromGrowth(g),peak:''},
     share:share,discourse:[],temas:[],conectadas:[],links:[],narrative:[]};}
 async function loadPulseFromDB(){
