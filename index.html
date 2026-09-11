@@ -904,6 +904,15 @@
 .gate-err{color:#c0392b;font-size:13px;margin-top:8px;min-height:16px;}
 .disctag{font-family:"Archivo";font-size:10px;text-transform:uppercase;letter-spacing:.5px;background:var(--green);color:var(--ink);border:1.5px solid var(--ink);border-radius:999px;padding:2px 9px;margin-left:10px;vertical-align:middle;}
 .newtag{font-family:"Archivo";font-size:9px;text-transform:uppercase;letter-spacing:.4px;background:var(--green);color:var(--ink);border:1px solid var(--ink);border-radius:3px;padding:1px 5px;margin:0 6px;vertical-align:middle;}
+.whybox{background:#F7F7F4;}
+.whytext{font-family:"Newsreader",serif;font-size:19px;line-height:1.5;margin:2px 0 16px;max-width:62ch;}
+.whytext.faint{color:var(--ink2);font-style:italic;}
+.whyev{display:flex;flex-direction:column;gap:1px;border-top:1px solid var(--hair);}
+.whyi{display:flex;align-items:center;gap:12px;padding:11px 2px;border-bottom:1px solid var(--hair);text-decoration:none;color:inherit;}
+.whyi:hover{background:#fff;}
+.whys{font-family:"Archivo";font-size:9.5px;text-transform:uppercase;letter-spacing:.5px;background:var(--ink);color:#fff;border-radius:3px;padding:2px 7px;flex:none;}
+.whyt{font-size:14px;line-height:1.35;flex:1;}
+.whygo{color:var(--ink2);flex:none;}
 </style>
 </head>
 <body>
@@ -1867,6 +1876,7 @@ function renderEntity(){
         <p class="lede">${e.sub}</p>
         <p class="about" data-wiki="${esc((e.wiki||e.nome).replace(/ /g,'_'))}">${e.sub}</p>
         <div class="netread">Cruza com ${e.conectadas.slice(0,5).map(c=>DB[c.id]?`<span class="nr" style="--nc:${HEX[DB[c.id].tipo]}" onclick="navTo('${c.id}')">${esc(DB[c.id].nome)}</span>`:'').join(' ')}</div>
+        ${(()=>{const ev=Array.isArray(e.evidence)?e.evidence:[];return `<section class="ent-sec whybox"><div class="sec-h"><b>Por que est\u00e1 em alta</b><span>o que puxou o pico \u00b7 lido das fontes</span></div>`+(e.why?`<p class="whytext">${esc(e.why)}</p>`:`<p class="whytext faint">Ainda reunindo sinais para explicar este assunto \u2014 a explica\u00e7\u00e3o aparece depois de algumas coletas.</p>`)+(ev.length?`<div class="whyev">${ev.slice(0,6).map(x=>`<a class="whyi" href="${x.url||'#'}" target="_blank" rel="noopener"><span class="whys">${esc(x.source||'')}</span><span class="whyt">${esc(x.title||'')}</span><span class="whygo">\u2197</span></a>`).join('')}</div>`:'')+`</section>`;})()}
         <section class="ent-sec"><div class="sec-h"><b>A rede</b><span>o mapa de conexões — arraste e clique</span></div><div class="graphmod"><div class="ghint">arraste · clique p/ viajar</div><svg id="graph"></svg></div><div class="grid2c" style="margin-top:18px"><div><div class="ph2">Temas relacionados</div>${pills(e.temas)}</div><div><div class="ph2">Entidades conectadas</div>${conn}</div></div></section>
         <section class="ent-sec"><div class="sec-h"><b>Situação agora</b><span>o pulso do assunto</span></div><div class="grid2c"><div class="panel"><div class="ph2">Fluxo da conversa · por plataforma</div><div id="mFlow">${streamgraph(e.share,e.pulse.spark)}</div><div class="strleg">${e.share.map(s=>`<span><b style="background:${s.c}"></b>${esc(s.p)}</span>`).join('')}</div><div class="cap">${esc(e.pulse.peak)}</div></div><div class="panel"><div class="ph2">Temperatura & crescimento</div><div class="gaugewrap">${gauge(e.pulse.temp.lvl,e.pulse.temp.lab)}<div class="growthbig" style="color:${g>=0?'#161410':'var(--red)'}">${gt}</div><div class="cap">vs. mês anterior</div></div></div></div></section>
         <section class="ent-sec"><div class="sec-h"><b>Como está sendo discutida</b><span>plataformas e tom</span></div><div class="grid2c"><div class="panel"><div class="ph2">Share of voice</div><div class="donutwrap">${donut(e.share,e.nome)}<div class="dleg">${e.share.map(s=>`<a class="dl" href="${platUrl(s.p,e.nome)}" target="_blank" rel="noopener" data-tip="abrir ${esc(s.p)} ↗"><b style="background:${s.c}"></b>${esc(s.p)}<em>${s.pct}%</em></a>`).join('')}</div></div></div><div class="panel"><div class="ph2">Tipos de discurso</div>${vbars(e.discourse,e.nome)}</div></div></section>
@@ -2047,6 +2057,7 @@ async function loadPulseFromDB(){
       let e=DB[row.subject_id];
       if(!e){ e=synthEntity(row); DB[row.subject_id]=e; }
       e.createdAt=row.created_at||e.createdAt; e.lastActive=row.last_active||e.lastActive;
+      if(row.why)e.why=row.why; if(Array.isArray(row.evidence))e.evidence=row.evidence;
       const vol=+row.vol30||0;
       if(vol>0){ e.pulse.n=vol; e.pulse.vol=fmt(vol); e.pulse.growth=Math.round(+row.growth||0); e.live=true; LIVE[row.subject_id]=true; }
       const spark=Array.isArray(row.spark)?row.spark.map(Number):[];
