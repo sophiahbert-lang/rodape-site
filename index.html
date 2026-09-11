@@ -1997,7 +1997,7 @@ document.querySelector('.topbar').insertAdjacentHTML('beforeend','<div class=\'a
 const SB_URL  = "https://uljrhhqydbizoxynayzp.supabase.co";
 const SB_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVsanJoaHF5ZGJpem94eW5heXpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkwNzA2NDQsImV4cCI6MjEwNDY0NjY0NH0.qcno0C4L-j1wO8uPQfUGcm_ozgCIZhtwqrfNdriUJbg";
 let DBLIVE=false;
-const PLAT={youtube:{p:"YouTube",c:"#E00",ico:"Y"},reddit:{p:"Reddit",c:"#0E36D6",ico:"R"},news:{p:"Notícias",c:"#111",ico:"N"}};
+const PLAT={youtube:{p:"YouTube",c:"#E00",ico:"Y"},reddit:{p:"Reddit",c:"#0E36D6",ico:"R"},news:{p:"Notícias",c:"#111",ico:"N"},rss:{p:"Portais",c:"#6FF2A0",ico:"P"}};
 /* ===== Supabase Auth + persistencia dos dados do usuario ===== */
 const SB_SESSKEY='rodape_session_v1';
 function sbHead(json){const h={apikey:SB_ANON,Authorization:'Bearer '+(AUTHTOK||SB_ANON)};if(json)h['Content-Type']='application/json';return h;}
