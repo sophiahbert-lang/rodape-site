@@ -2128,7 +2128,7 @@ async function loadPulseFromDB(){
       let e=DB[row.subject_id];
       if(!e){ e=synthEntity(row); DB[row.subject_id]=e; }
       e.createdAt=row.created_at||e.createdAt; e.lastActive=row.last_active||e.lastActive;
-      if(row.why)e.why=row.why; if(Array.isArray(row.evidence))e.evidence=row.evidence; if(row.sentiment)e.sentiment=row.sentiment;
+      if(row.why)e.why=row.why; if(Array.isArray(row.evidence))e.evidence=row.evidence; if(row.sentiment)e.sentiment=row.sentiment; if(Array.isArray(row.related))e.conectadas=row.related;
       const vol=+row.vol30||0;
       if(vol>0){ e.pulse.n=vol; e.pulse.vol=fmt(vol); e.pulse.growth=Math.round(+row.growth||0); e.live=true; LIVE[row.subject_id]=true; }
       const spark=Array.isArray(row.spark)?row.spark.map(Number):[];
